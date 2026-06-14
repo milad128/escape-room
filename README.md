@@ -213,4 +213,3 @@ All game config is at the top of `server.py`:
 - `DEFAULT_TIMER_SECONDS` — default mission duration
 
 The leaderboard auto-adapts to whatever `LAYERS` you define.
-# escape-room
