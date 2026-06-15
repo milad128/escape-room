@@ -464,21 +464,148 @@
 
   /* ══ STEP 3 — Missions ════════════════════════════════════════ */
   #stepMission {
+    position: relative;
+    width: 100%;
+    max-width: 100vw;
+    height: 100%;
+    max-height: 100vh;
+    max-height: 100dvh;
     background: transparent;
     color: var(--text);
     flex-direction: column;
-    padding: 20px 28px 24px;
-    gap: 16px;
+    padding: 12px 16px 14px;
+    gap: 10px;
     overflow: hidden;
+    min-height: 0;
+  }
+  .mission-main {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow: hidden;
+    width: 100%;
+  }
+  .victory-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 60;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(3, 7, 18, 0.88);
+    backdrop-filter: blur(8px);
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .victory-overlay.show {
+    display: flex;
+    animation: victoryFadeIn 0.7s ease forwards;
+  }
+  @keyframes victoryFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  #victoryConfetti {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .victory-content {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    padding: 24px 40px;
+    max-width: 900px;
+    animation: victoryPop 0.9s cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+  @keyframes victoryPop {
+    0% { transform: scale(0.75); opacity: 0; }
+    70% { transform: scale(1.04); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .victory-kicker {
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 12px;
+  }
+  .victory-title {
+    font-family: var(--sans);
+    font-size: clamp(36px, 6vw, 56px);
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    color: var(--cyan);
+    text-shadow: 0 0 40px var(--cyan-glow), 0 0 80px rgba(0, 229, 255, 0.25);
+    margin-bottom: 10px;
+  }
+  .victory-sub {
+    font-family: var(--sans);
+    font-size: 15px;
+    color: var(--text);
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+  .victory-winner {
+    font-family: var(--sans);
+    font-size: clamp(22px, 3vw, 32px);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--amber);
+    text-shadow: 0 0 24px rgba(251, 191, 36, 0.4);
+    margin-bottom: 24px;
+  }
+  .victory-teams {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+  }
+  .victory-team-card {
+    background: rgba(0, 229, 255, 0.08);
+    border: 1px solid rgba(0, 229, 255, 0.35);
+    border-radius: var(--radius-sm);
+    padding: 12px 18px;
+    min-width: 140px;
+    box-shadow: 0 0 20px rgba(0, 229, 255, 0.12);
+  }
+  .victory-team-card.leader {
+    border-color: rgba(251, 191, 36, 0.55);
+    background: rgba(251, 191, 36, 0.1);
+    box-shadow: 0 0 28px rgba(251, 191, 36, 0.2);
+  }
+  .victory-team-card .name {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--cyan);
+    margin-bottom: 4px;
+  }
+  .victory-team-card.leader .name { color: var(--amber); }
+  .victory-team-card .score {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
   }
   .mission-top {
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 16px 24px 18px;
+    padding: 12px 16px 14px;
     background: var(--panel);
     backdrop-filter: blur(var(--glass-blur));
     box-shadow: var(--shadow-panel);
     text-align: center;
+    flex-shrink: 0;
+    width: 100%;
+    min-width: 0;
   }
   .mission-top .badge {
     font-family: var(--sans);
@@ -491,7 +618,7 @@
   }
   .mission-clock {
     font-family: var(--sans);
-    font-size: 52px;
+    font-size: clamp(32px, 4.5vw, 46px);
     font-weight: 700;
     color: var(--cyan);
     letter-spacing: 0.08em;
@@ -507,11 +634,13 @@
   }
   .mission-top-meta {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
-    gap: 28px;
-    margin-top: 10px;
-    font-size: 11px;
-    letter-spacing: 2px;
+    align-items: center;
+    gap: 10px 20px;
+    margin-top: 8px;
+    font-size: 10px;
+    letter-spacing: 1.5px;
     color: var(--text-dim);
   }
   .mission-top-meta .hostile {
@@ -524,15 +653,47 @@
   }
   .phrase-card {
     flex-shrink: 0;
+    min-width: 0;
+  }
+  .phrase-card .mission-card-body {
+    overflow: visible;
+    flex: none;
+  }
+  .phrase-word.revealed.word-reveal {
+    animation: slotReveal 0.6s ease, wordGlow 1.2s ease 0.3s;
+    font-size: 22px;
+    letter-spacing: 6px;
+    padding: 10px 18px;
+  }
+  .phrase-revealed-by {
+    display: block;
+    margin-top: 6px;
+    font-family: var(--sans);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--amber);
+    text-align: center;
+  }
+  @keyframes wordGlow {
+    0%, 100% { box-shadow: var(--glow-cyan); }
+    50% { box-shadow: 0 0 28px rgba(0, 229, 255, 0.55); }
   }
   .phrase-line {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     gap: 16px;
     min-height: 52px;
     padding: 6px 4px;
+  }
+  .phrase-mission-group {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
   }
   .phrase-word {
     display: inline-flex;
@@ -561,16 +722,45 @@
     border-radius: var(--radius-xs);
     animation: slotReveal 0.45s ease;
   }
+  .phrase-word.revealed.cleared {
+    min-width: calc(var(--slots, 4) * 13px + 28px);
+  }
+  .phrase-digits-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .phrase-digit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    min-height: 32px;
+    padding: 4px 8px;
+    border: 1px solid var(--cyan);
+    border-radius: var(--radius-xs);
+    background: rgba(3, 7, 18, 0.65);
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--cyan);
+    letter-spacing: 0;
+  }
   @keyframes slotReveal {
     from { transform: scale(0.85); opacity: 0.3; }
     to { transform: scale(1); opacity: 1; }
   }
   .mission-panels {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
     flex: 1;
     min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+    width: 100%;
   }
   .mission-card {
     border: 1px solid var(--border);
@@ -581,43 +771,69 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+    min-width: 0;
+    max-height: 100%;
     overflow: hidden;
   }
   .mission-card-head {
-    padding: 14px 18px;
+    padding: 10px 14px;
     border-bottom: 1px solid var(--border);
     font-family: var(--sans);
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
-    letter-spacing: 0.22em;
+    letter-spacing: 0.18em;
     color: var(--cyan);
     text-transform: uppercase;
+    flex-shrink: 0;
   }
   .mission-card-body {
     flex: 1;
     overflow-y: auto;
-    padding: 10px 12px 14px;
+    overflow-x: hidden;
+    padding: 8px 10px 10px;
+    min-height: 0;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mission-board-card .mission-card-body {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+  }
+  .mission-board-card .mission-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px 10px 10px;
+    -webkit-overflow-scrolling: touch;
   }
   .lb-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 13px;
+    font-size: 12px;
+    table-layout: fixed;
   }
   .lb-table th {
     text-align: left;
-    font-size: 10px;
-    letter-spacing: 0.12em;
+    font-size: 9px;
+    letter-spacing: 0.1em;
     color: var(--text-muted);
-    padding: 8px 10px;
+    padding: 6px 8px;
     font-family: var(--sans);
     border-bottom: 1px solid var(--border);
     font-weight: 600;
     text-transform: uppercase;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .lb-table td {
-    padding: 11px 10px;
+    padding: 8px;
     border-bottom: 1px solid rgba(0, 229, 255, 0.08);
     vertical-align: middle;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .lb-table tr:last-child td { border-bottom: none; }
   .lb-rank {
@@ -629,28 +845,32 @@
   .lb-name {
     font-family: var(--sans);
     font-weight: 600;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
     color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .lb-members {
     font-family: var(--mono);
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 400;
     letter-spacing: 0;
     color: var(--text-muted);
-    line-height: 1.4;
-    margin-top: 5px;
+    line-height: 1.35;
+    margin-top: 4px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 280px;
+    max-width: 100%;
   }
   .lb-score {
     text-align: right;
     font-weight: 700;
-    font-size: 18px;
+    font-size: 15px;
     color: var(--cyan);
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
   .lb-progress {
     text-align: right;
@@ -681,13 +901,21 @@
     opacity: 0.4;
     border-color: rgba(71, 85, 105, 0.3);
   }
+  .mission-row.mission-six {
+    border-color: rgba(251, 191, 36, 0.35);
+  }
+  .mission-row.mission-six.active {
+    border-color: rgba(251, 191, 36, 0.55);
+    box-shadow: 0 0 24px rgba(251, 191, 36, 0.12);
+  }
+  .mission-row.mission-six .mission-num { color: var(--amber); }
   .mission-row.collapsed .mission-body { display: none; }
   .mission-row.locked.collapsed .mission-body { display: none; }
   .mission-row.active .mission-body { display: block; }
   .mission-head {
     display: grid;
-    grid-template-columns: 44px 1fr auto;
-    gap: 10px;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    gap: 8px;
     align-items: center;
   }
   .mission-slot-bar {
@@ -765,15 +993,23 @@
   }
   .mission-row.active .mission-num,
   .mission-row.cleared .mission-num { color: var(--cyan); }
+  .mission-info {
+    min-width: 0;
+    overflow: hidden;
+  }
   .mission-info .meta {
     font-size: 10px;
     color: var(--text-muted);
     letter-spacing: 0.05em;
     margin-top: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .mission-status {
     text-align: right;
-    min-width: 88px;
+    min-width: 0;
+    flex-shrink: 0;
   }
   .mission-winners {
     font-size: 10px;
@@ -781,27 +1017,6 @@
     margin-top: 6px;
     letter-spacing: 0.05em;
     line-height: 1.4;
-  }
-  .mission-instruction {
-    margin-top: 10px;
-    padding: 12px 14px;
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--violet);
-    border-radius: var(--radius-xs);
-    background: rgba(167, 139, 250, 0.08);
-    font-family: var(--sans);
-    font-size: 12px;
-    line-height: 1.55;
-    color: var(--text);
-  }
-  .mission-instruction-label {
-    display: block;
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--violet);
-    margin-bottom: 6px;
   }
   .digit-panel {
     margin-top: 14px;
@@ -847,10 +1062,13 @@
   }
   .mission-info .name {
     font-family: var(--sans);
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
     color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .mission-badge {
     border-radius: 999px;
@@ -873,6 +1091,27 @@
     background: rgba(16, 185, 129, 0.12);
   }
   .mission-winners span { color: var(--cyan); }
+
+  @media (max-width: 960px) {
+    #stepMission {
+      padding: 10px 12px 12px;
+    }
+    .mission-panels {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    }
+  }
+
+  @media (max-height: 760px) {
+    .mission-top {
+      padding: 8px 12px 10px;
+    }
+    .mission-top .badge { margin-bottom: 4px; }
+    .mission-clock-label { margin-top: 4px; }
+    .mission-card-head {
+      padding: 8px 12px;
+    }
+  }
 </style>
 </head>
 <body class="ai-theme">
@@ -947,6 +1186,7 @@
     </div>
   </div>
 
+  <div class="mission-main">
   <section class="mission-card phrase-card">
     <div class="mission-card-head">PROTOCOL PHRASE</div>
     <div class="mission-card-body">
@@ -959,7 +1199,7 @@
       <div class="mission-card-head">LEADERBOARD</div>
       <div class="mission-card-body" id="leaderboardBody"></div>
     </section>
-    <section class="mission-card">
+    <section class="mission-card mission-board-card">
       <div class="mission-card-head">MISSION BOARD</div>
       <div class="mission-card-body">
         <div class="mission-list" id="missionBoard"></div>
@@ -977,6 +1217,18 @@
       </div>
     </section>
   </div>
+  </div>
+
+  <div class="victory-overlay" id="victoryOverlay" hidden aria-hidden="true">
+    <canvas id="victoryConfetti"></canvas>
+    <div class="victory-content">
+      <div class="victory-kicker">Protocol override complete</div>
+      <div class="victory-title">ARIA DEFEATED</div>
+      <div class="victory-sub" id="victorySub">The teams have broken the protocol. Humanity wins.</div>
+      <div class="victory-winner" id="victoryWinner"></div>
+      <div class="victory-teams" id="victoryTeams"></div>
+    </div>
+  </div>
 </div>
 
 
@@ -991,10 +1243,15 @@ let lastStep1NarrationId = 0;
 let lastStep2NarrationId = 0;
 let lastStep2ShuffleNarrationId = 0;
 let lastScoreEventId = 0;
+let lastPassphraseRevealEventId = 0;
+let lastGameOverEventId = 0;
+let victoryConfettiAnimId = null;
 let lastSquadNamesKey = '';
 let step2FormBuilt = false;
 let step2TimeoutPlayed = false;
 let matrixAnimId = null;
+let missionClockTick = null;
+let missionClockSecs = 0;
 
 // Fallback narration if server not yet reached
 const STEP1_NARRATION_FA = (
@@ -1053,23 +1310,114 @@ function showStep(n) {
 
 /* ── Audio / TTS ───────────────────────────────────────────────── */
 
-function playToneSequence(freqs) {
+function playToneSequence(freqs, peakGain = 0.15, ctx = null) {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const audioCtx = ctx || new (window.AudioContext || window.webkitAudioContext)();
     freqs.forEach(([freq, start, dur]) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
       osc.type = 'square';
       osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime + start);
-      gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + start + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + dur);
+      gain.gain.setValueAtTime(0.0001, audioCtx.currentTime + start);
+      gain.gain.exponentialRampToValueAtTime(peakGain, audioCtx.currentTime + start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + start + dur);
       osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(ctx.currentTime + start);
-      osc.stop(ctx.currentTime + start + dur + 0.05);
+      gain.connect(audioCtx.destination);
+      osc.start(audioCtx.currentTime + start);
+      osc.stop(audioCtx.currentTime + start + dur + 0.05);
     });
-  } catch (_) {}
+    return audioCtx;
+  } catch (_) {
+    return null;
+  }
+}
+
+function playStep1Alarms(onDone) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const master = ctx.createGain();
+    master.gain.value = 0.72;
+    master.connect(ctx.destination);
+
+    const cycles = 3;
+    const cycleDur = 1.45;
+    const gap = 1.6;
+
+    for (let c = 0; c < cycles; c++) {
+      const base = ctx.currentTime + c * gap;
+
+      // Sub-bass dread rumble
+      const sub = ctx.createOscillator();
+      const subGain = ctx.createGain();
+      sub.type = 'sawtooth';
+      sub.frequency.setValueAtTime(42, base);
+      sub.frequency.exponentialRampToValueAtTime(78, base + cycleDur);
+      subGain.gain.setValueAtTime(0.0001, base);
+      subGain.gain.exponentialRampToValueAtTime(0.4, base + 0.1);
+      subGain.gain.exponentialRampToValueAtTime(0.0001, base + cycleDur);
+      sub.connect(subGain);
+      subGain.connect(master);
+      sub.start(base);
+      sub.stop(base + cycleDur + 0.1);
+
+      // Air-raid siren — harsh sweep
+      const siren = ctx.createOscillator();
+      const sirenGain = ctx.createGain();
+      siren.type = 'square';
+      siren.frequency.setValueAtTime(260, base);
+      siren.frequency.linearRampToValueAtTime(980, base + 0.5);
+      siren.frequency.linearRampToValueAtTime(300, base + 1.0);
+      siren.frequency.linearRampToValueAtTime(940, base + 1.35);
+      sirenGain.gain.setValueAtTime(0.0001, base);
+      sirenGain.gain.exponentialRampToValueAtTime(0.48, base + 0.05);
+      sirenGain.gain.exponentialRampToValueAtTime(0.0001, base + cycleDur);
+      siren.connect(sirenGain);
+      sirenGain.connect(master);
+      siren.start(base);
+      siren.stop(base + cycleDur + 0.1);
+
+      // Dissonant tritone layer
+      const dis = ctx.createOscillator();
+      const disGain = ctx.createGain();
+      dis.type = 'sawtooth';
+      dis.frequency.setValueAtTime(400, base);
+      dis.frequency.linearRampToValueAtTime(650, base + cycleDur);
+      disGain.gain.setValueAtTime(0.0001, base);
+      disGain.gain.exponentialRampToValueAtTime(0.22, base + 0.08);
+      disGain.gain.exponentialRampToValueAtTime(0.0001, base + cycleDur);
+      dis.connect(disGain);
+      disGain.connect(master);
+      dis.start(base);
+      dis.stop(base + cycleDur + 0.1);
+
+      // Noise impact stabs
+      [0, 0.48, 0.96].forEach((stab) => {
+        const len = Math.floor(ctx.sampleRate * 0.14);
+        const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) {
+          data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+        }
+        const noise = ctx.createBufferSource();
+        noise.buffer = buf;
+        const nGain = ctx.createGain();
+        const t = base + stab;
+        nGain.gain.setValueAtTime(0.0001, t);
+        nGain.gain.exponentialRampToValueAtTime(0.62, t + 0.012);
+        nGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+        noise.connect(nGain);
+        nGain.connect(master);
+        noise.start(t);
+        noise.stop(t + 0.16);
+      });
+    }
+
+    const totalMs = Math.ceil((cycles * gap + 0.4) * 1000);
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    setTimeout(() => onDone?.(), totalMs);
+  } catch (_) {
+    onDone?.();
+  }
 }
 
 function playIntroSound() {
@@ -1099,6 +1447,255 @@ function playSuccessSound() {
   ]);
 }
 
+function playPhraseRevealSound() {
+  playToneSequence([
+    [392, 0, 0.2],
+    [523, 0.18, 0.2],
+    [659, 0.36, 0.2],
+    [784, 0.54, 0.22],
+    [1047, 0.76, 0.35],
+    [1319, 0.95, 0.55],
+  ], 0.42);
+}
+
+function playVictoryCelebrationSound() {
+  playToneSequence([
+    [523, 0, 0.18],
+    [659, 0.14, 0.18],
+    [784, 0.28, 0.2],
+    [1047, 0.44, 0.22],
+    [1319, 0.62, 0.28],
+    [1568, 0.84, 0.45],
+  ], 0.38);
+  setTimeout(() => playToneSequence([
+    [1047, 0, 0.22],
+    [1319, 0.18, 0.28],
+    [1760, 0.4, 0.55],
+  ], 0.35), 700);
+  setTimeout(() => playPhraseRevealSound(), 1400);
+}
+
+function playExplosionSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const master = ctx.createGain();
+    master.gain.value = 0.88;
+    master.connect(ctx.destination);
+    const t = ctx.currentTime;
+
+    const boom = ctx.createOscillator();
+    const boomGain = ctx.createGain();
+    boom.type = 'sine';
+    boom.frequency.setValueAtTime(140, t);
+    boom.frequency.exponentialRampToValueAtTime(24, t + 0.55);
+    boomGain.gain.setValueAtTime(0.0001, t);
+    boomGain.gain.exponentialRampToValueAtTime(0.95, t + 0.018);
+    boomGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+    boom.connect(boomGain);
+    boomGain.connect(master);
+    boom.start(t);
+    boom.stop(t + 0.95);
+
+    const crack = ctx.createOscillator();
+    const crackGain = ctx.createGain();
+    crack.type = 'sawtooth';
+    crack.frequency.setValueAtTime(90, t);
+    crack.frequency.exponentialRampToValueAtTime(40, t + 0.25);
+    crackGain.gain.setValueAtTime(0.0001, t);
+    crackGain.gain.exponentialRampToValueAtTime(0.35, t + 0.01);
+    crackGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+    crack.connect(crackGain);
+    crackGain.connect(master);
+    crack.start(t);
+    crack.stop(t + 0.4);
+
+    const len = Math.floor(ctx.sampleRate * 0.7);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.6);
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const nGain = ctx.createGain();
+    nGain.gain.setValueAtTime(0.0001, t);
+    nGain.gain.exponentialRampToValueAtTime(0.8, t + 0.012);
+    nGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.65);
+    noise.connect(nGain);
+    nGain.connect(master);
+    noise.start(t);
+    noise.stop(t + 0.7);
+
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  } catch (_) {}
+}
+
+let ariaDefeatTauntTimer = null;
+
+function speakEnglishLine(text) {
+  return new Promise(async (resolve) => {
+    if (!window.speechSynthesis || !text) {
+      resolve();
+      return;
+    }
+    const voices = await waitForVoices();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'en-US';
+    utter.rate = 0.9;
+    utter.pitch = 0.62;
+    utter.volume = 1;
+    const voice = voices.find(v => v.lang.startsWith('en') && /guy|david|fred|daniel|male/i.test(v.name))
+      || voices.find(v => v.lang.startsWith('en-US'))
+      || voices.find(v => v.lang.startsWith('en'))
+      || getAriaVoice();
+    if (voice) utter.voice = voice;
+    const maxMs = Math.min(120000, text.length * 80 + 3000);
+    const timer = setTimeout(() => resolve(), maxMs);
+    const finish = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    utter.onend = finish;
+    utter.onerror = finish;
+    window.speechSynthesis.speak(utter);
+  });
+}
+
+async function speakAriaDefeatTaunt() {
+  if (ariaAudio) releaseAriaAudio();
+  window.speechSynthesis?.cancel();
+  await speakEnglishLine('Shit');
+  await new Promise(r => setTimeout(r, 380));
+  await speakEnglishLine('shit');
+  await new Promise(r => setTimeout(r, 380));
+  await speakEnglishLine('shit, beginers luck, i will come back soon');
+}
+
+function playAriaDefeatSequence() {
+  if (ariaDefeatTauntTimer) {
+    clearTimeout(ariaDefeatTauntTimer);
+    ariaDefeatTauntTimer = null;
+  }
+  if (ariaAudio) releaseAriaAudio();
+  window.speechSynthesis?.cancel();
+  playExplosionSound();
+  ariaDefeatTauntTimer = setTimeout(() => {
+    ariaDefeatTauntTimer = null;
+    speakAriaDefeatTaunt();
+  }, 3000);
+}
+
+function stopVictoryConfetti() {
+  if (victoryConfettiAnimId) {
+    cancelAnimationFrame(victoryConfettiAnimId);
+    victoryConfettiAnimId = null;
+  }
+}
+
+function launchVictoryConfetti(durationMs = 12000) {
+  stopVictoryConfetti();
+  const canvas = document.getElementById('victoryConfetti');
+  const overlay = document.getElementById('victoryOverlay');
+  if (!canvas || !overlay) return;
+  const rect = overlay.getBoundingClientRect();
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+  const ctx = canvas.getContext('2d');
+  const colors = ['#00e5ff', '#fbbf24', '#a78bfa', '#34d399', '#fb7185', '#38bdf8'];
+  const particles = Array.from({ length: 160 }, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height - canvas.height,
+    w: 6 + Math.random() * 8,
+    h: 10 + Math.random() * 14,
+    color: colors[Math.floor(Math.random() * colors.length)],
+    rot: Math.random() * Math.PI * 2,
+    spin: (Math.random() - 0.5) * 0.2,
+    vy: 2 + Math.random() * 4,
+    vx: (Math.random() - 0.5) * 2,
+  }));
+  const start = performance.now();
+  function frame(now) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach((p) => {
+      p.y += p.vy;
+      p.x += p.vx;
+      p.rot += p.spin;
+      if (p.y > canvas.height + 20) {
+        p.y = -20;
+        p.x = Math.random() * canvas.width;
+      }
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = 0.9;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    });
+    if (now - start < durationMs) {
+      victoryConfettiAnimId = requestAnimationFrame(frame);
+    } else {
+      victoryConfettiAnimId = null;
+    }
+  }
+  victoryConfettiAnimId = requestAnimationFrame(frame);
+}
+
+function hideVictoryCelebration() {
+  stopVictoryConfetti();
+  if (ariaDefeatTauntTimer) {
+    clearTimeout(ariaDefeatTauntTimer);
+    ariaDefeatTauntTimer = null;
+  }
+  if (ariaAudio) releaseAriaAudio();
+  window.speechSynthesis?.cancel();
+  const overlay = document.getElementById('victoryOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('show');
+  overlay.hidden = true;
+  overlay.setAttribute('aria-hidden', 'true');
+}
+
+function showVictoryCelebration(state) {
+  const overlay = document.getElementById('victoryOverlay');
+  const winnerEl = document.getElementById('victoryWinner');
+  const teamsEl = document.getElementById('victoryTeams');
+  const subEl = document.getElementById('victorySub');
+  if (!overlay) return;
+
+  const squads = [...(state.squads || [])].sort((a, b) => b.score - a.score);
+  const winner = state.winner || squads[0]?.name || '';
+  const timerLeft = state.timer?.remaining_seconds ?? 0;
+
+  if (winnerEl) {
+    winnerEl.textContent = winner
+      ? `${winner} LEADS · HUMANS WIN`
+      : 'HUMANS WIN';
+  }
+  if (subEl) {
+    subEl.textContent = timerLeft > 0
+      ? `All protocol words confirmed before time ran out. The teams have defeated ARIA.`
+      : `All protocol words confirmed. The teams have defeated ARIA.`;
+  }
+  if (teamsEl) {
+    teamsEl.innerHTML = squads.map((s, i) => `
+      <div class="victory-team-card ${i === 0 ? 'leader' : ''}">
+        <div class="name">${escapeHtml(s.name)}${i === 0 ? ' ★' : ''}</div>
+        <div class="score">${s.score} pts</div>
+      </div>
+    `).join('');
+  }
+
+  overlay.hidden = false;
+  overlay.setAttribute('aria-hidden', 'false');
+  overlay.classList.add('show');
+  launchVictoryConfetti();
+  playAriaDefeatSequence();
+
+  const hostileEl = document.querySelector('.mission-top-meta .hostile');
+  if (hostileEl) hostileEl.textContent = 'ARIA: DEFEATED';
+}
+
 function playLoseSound() {
   playToneSequence([
     [330, 0, 0.14],
@@ -1124,55 +1721,121 @@ function getAriaVoice() {
 }
 
 let ariaAudio = null;
+let ariaAudioUrl = null;
 
-async function playAriaTTS(key, fallbackText, onEnd) {
+function releaseAriaAudio() {
   if (ariaAudio) {
     ariaAudio.pause();
     ariaAudio.currentTime = 0;
     ariaAudio = null;
   }
-  try {
-    ariaAudio = new Audio(`${API}/api/tts/${key}?v=female`);
-    ariaAudio.playbackRate = 1.0;
-    ariaAudio.onended = () => { ariaAudio = null; onEnd?.(); };
-    ariaAudio.onerror = () => {
-      ariaAudio = null;
-      console.warn('ARIA TTS failed, using browser voice');
-      speakPersian(fallbackText, onEnd);
-    };
-    await ariaAudio.play();
-  } catch (err) {
-    console.warn('ARIA TTS play blocked', err);
-    speakPersian(fallbackText, onEnd);
+  if (ariaAudioUrl) {
+    URL.revokeObjectURL(ariaAudioUrl);
+    ariaAudioUrl = null;
   }
 }
 
-function speakPersian(text, onEnd) {
+function waitForVoices(timeoutMs = 800) {
+  return new Promise((resolve) => {
+    if (!window.speechSynthesis) {
+      resolve([]);
+      return;
+    }
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length) {
+      resolve(voices);
+      return;
+    }
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      resolve(window.speechSynthesis.getVoices());
+    };
+    window.speechSynthesis.onvoiceschanged = finish;
+    setTimeout(finish, timeoutMs);
+  });
+}
+
+async function playAriaTTS(key, fallbackText, onEnd, options = {}) {
+  const robotic = Boolean(options.robotic);
+  releaseAriaAudio();
+  try {
+    const res = await fetch(
+      `${API}/api/tts/${key}?v=${robotic ? 'robotic' : 'default'}`,
+      { cache: 'no-store' }
+    );
+    if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
+    const blob = await res.blob();
+    if (!blob.size || blob.type.includes('json')) throw new Error('TTS empty');
+    ariaAudioUrl = URL.createObjectURL(blob);
+    ariaAudio = new Audio(ariaAudioUrl);
+    ariaAudio.playbackRate = robotic ? 0.96 : 1.0;
+    ariaAudio.onended = () => {
+      releaseAriaAudio();
+      onEnd?.();
+    };
+    ariaAudio.onerror = () => {
+      releaseAriaAudio();
+      if (robotic) speakRobotic(fallbackText, onEnd);
+      else speakPersian(fallbackText, onEnd);
+    };
+    await ariaAudio.play();
+  } catch (err) {
+    console.warn('ARIA TTS unavailable, using browser voice', err);
+    releaseAriaAudio();
+    if (robotic) await speakRobotic(fallbackText, onEnd);
+    else await speakPersian(fallbackText, onEnd);
+  }
+}
+
+async function speakPersian(text, onEnd) {
   if (!window.speechSynthesis || !text) { onEnd?.(); return; }
+  const voices = await waitForVoices();
   window.speechSynthesis.cancel();
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = 'fa-IR';
   utter.rate = 0.86;
   utter.pitch = 1.05;
   utter.volume = 1;
-  const voice = getPersianVoice();
+  const voice = voices.find(v => v.lang.startsWith('fa') && /dilara|female/i.test(v.name))
+    || voices.find(v => v.lang.startsWith('fa'))
+    || voices.find(v => /persian|farsi|dilara/i.test(v.name))
+    || null;
   if (voice) utter.voice = voice;
-  utter.onend = () => onEnd?.();
-  utter.onerror = () => onEnd?.();
+  const maxMs = Math.min(120000, text.length * 90 + 4000);
+  const timer = setTimeout(() => onEnd?.(), maxMs);
+  const finish = () => {
+    clearTimeout(timer);
+    onEnd?.();
+  };
+  utter.onend = finish;
+  utter.onerror = finish;
   window.speechSynthesis.speak(utter);
 }
 
-function speakRobotic(text, onEnd) {
+async function speakRobotic(text, onEnd) {
   if (!window.speechSynthesis || !text) { onEnd?.(); return; }
+  const voices = await waitForVoices();
   window.speechSynthesis.cancel();
   const utter = new SpeechSynthesisUtterance(text);
-  utter.rate = 0.82;
-  utter.pitch = 1.0;
+  utter.lang = 'fa-IR';
+  utter.rate = 0.9;
+  utter.pitch = 0.72;
   utter.volume = 1;
-  const voice = getAriaVoice();
+  const voice = voices.find(v => v.lang.startsWith('fa') && /farid|male/i.test(v.name))
+    || voices.find(v => v.lang.startsWith('fa'))
+    || voices.find(v => /compact|zira|fred|daniel|microsoft/i.test(v.name))
+    || getAriaVoice();
   if (voice) utter.voice = voice;
-  utter.onend = () => onEnd?.();
-  utter.onerror = () => onEnd?.();
+  const maxMs = Math.min(120000, text.length * 90 + 4000);
+  const timer = setTimeout(() => onEnd?.(), maxMs);
+  const finish = () => {
+    clearTimeout(timer);
+    onEnd?.();
+  };
+  utter.onend = finish;
+  utter.onerror = finish;
   window.speechSynthesis.speak(utter);
 }
 
@@ -1235,6 +1898,14 @@ function typewriter(el, text, speed, onDone) {
   tick();
 }
 
+function showStep1ContinueButton() {
+  const acceptBtn = document.getElementById('acceptBtn');
+  if (!acceptBtn) return;
+  acceptBtn.hidden = false;
+  acceptBtn.classList.add('show');
+  acceptBtn.disabled = false;
+}
+
 function beginStep1Narration(text, narrationId) {
   if (!narrationId || narrationId === lastStep1NarrationId) return;
   lastStep1NarrationId = narrationId;
@@ -1244,19 +1915,26 @@ function beginStep1Narration(text, narrationId) {
   acceptBtn.hidden = true;
   acceptBtn.classList.remove('show');
   acceptBtn.disabled = false;
+  narrEl.innerHTML = '<span class="cursor"></span>';
 
-  playIntroSound();
-  playAriaTTS('step1', text, () => {
-    acceptBtn.hidden = false;
-    acceptBtn.classList.add('show');
+  let continueShown = false;
+  const revealContinue = () => {
+    if (continueShown) return;
+    continueShown = true;
+    showStep1ContinueButton();
+  };
+
+  playStep1Alarms(() => {
+    playAriaTTS('step1', text, null, { robotic: true });
+    typewriter(narrEl, text, 28, () => setTimeout(revealContinue, 500));
+    setTimeout(revealContinue, text.length * 28 + 6000);
   });
-  typewriter(narrEl, text, 28);
 }
 
 document.getElementById('acceptBtn').addEventListener('click', async () => {
   const btn = document.getElementById('acceptBtn');
   btn.disabled = true;
-  if (ariaAudio) { ariaAudio.pause(); ariaAudio = null; }
+  if (ariaAudio) releaseAriaAudio();
   try {
     const res = await fetch(`${API}/gm/step/2/begin`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed');
@@ -1305,7 +1983,17 @@ document.getElementById('startBtn').addEventListener('click', async () => {
 
 function renderStep1(state) {
   if (state.step !== STEPS.INTRO) return;
-  beginStep1Narration(state.step1.narration, state.step1.narration_id);
+  const narrId = state.step1?.narration_id;
+  const text = state.step1?.narration || '';
+  if (!narrId) return;
+  if (narrId === lastStep1NarrationId) {
+    const narrEl = document.getElementById('matrixNarration');
+    if (text && narrEl && narrEl.textContent.length >= text.length - 1) {
+      showStep1ContinueButton();
+    }
+    return;
+  }
+  beginStep1Narration(text, narrId);
 }
 
 /* ── Step 2 render ─────────────────────────────────────────────── */
@@ -1314,6 +2002,52 @@ const MAX_MEMBERS_PER_SQUAD = 6;
 
 let lastStep2TeamCount = 0;
 let lastStep2MaxMembers = 0;
+
+function step2HintText(act0) {
+  const teams = act0.team_count || 4;
+  const maxMembers = act0.max_members || MAX_MEMBERS_PER_SQUAD;
+  const players = act0.player_count || teams * maxMembers;
+  return `Enter all ${teams} team names and all ${players} player names `
+    + `(up to ${maxMembers} per squad), then register before time runs out.`;
+}
+
+function isStep2RegistrationReady(act0) {
+  if (!act0) return false;
+  const teamCount = act0.team_count || 4;
+  const maxMembers = act0.max_members || MAX_MEMBERS_PER_SQUAD;
+  const requiredPlayers = act0.player_count || teamCount * maxMembers;
+  const form = document.getElementById('s2Form');
+  if (!form) return false;
+
+  for (let i = 0; i < teamCount; i++) {
+    const name = form.querySelector(`[name="team_name_${i}"]`)?.value?.trim() || '';
+    if (!name) return false;
+  }
+
+  let memberCount = 0;
+  for (let i = 0; i < teamCount; i++) {
+    for (let m = 0; m < maxMembers; m++) {
+      const val = form.querySelector(`[name="team_member_${i}_${m}"]`)?.value?.trim() || '';
+      if (val) memberCount++;
+    }
+  }
+
+  if (act0.timed_out) {
+    return memberCount > 0;
+  }
+
+  return memberCount >= requiredPlayers;
+}
+
+function updateStep2SubmitState(act0) {
+  const submitBtn = document.getElementById('s2Submit');
+  if (!submitBtn || !act0) return;
+  if (!act0.active && !act0.timed_out) {
+    submitBtn.disabled = true;
+    return;
+  }
+  submitBtn.disabled = !isStep2RegistrationReady(act0);
+}
 
 function buildStep2Form(teamCount, maxMembers) {
   const slots = maxMembers || MAX_MEMBERS_PER_SQUAD;
@@ -1343,14 +2077,8 @@ function buildStep2Form(teamCount, maxMembers) {
       </div>
     </div>
   `).join('');
-}
-
-function step2HintText(act0) {
-  const teams = act0.team_count || 4;
-  const maxMembers = act0.max_members || MAX_MEMBERS_PER_SQUAD;
-  const players = act0.player_count || teams * maxMembers;
-  return `Enter all ${teams} team names and up to ${maxMembers} members each `
-    + `(${players} players), then register before time runs out.`;
+  const form = document.getElementById('s2Form');
+  form.oninput = () => updateStep2SubmitState(lastState?.act0);
 }
 
 function renderStep2(state) {
@@ -1394,11 +2122,15 @@ function renderStep2(state) {
     root.classList.add('s2-active');
     document.getElementById('s2Done').classList.remove('show');
     buildStep2Form(act0.team_count || 4, act0.max_members || MAX_MEMBERS_PER_SQUAD);
-
-    clock.textContent = fmtShort(act0.remaining_seconds);
+    const displaySeconds = act0.running || act0.timed_out
+      ? act0.remaining_seconds
+      : (act0.duration_seconds ?? act0.remaining_seconds ?? 60);
+    clock.textContent = fmtShort(displaySeconds);
     timer.classList.remove('warn', 'danger');
-    if (act0.remaining_seconds <= 10) timer.classList.add('danger');
-    else if (act0.remaining_seconds <= 30) timer.classList.add('warn');
+    if (act0.running || act0.timed_out) {
+      if (act0.remaining_seconds <= 10) timer.classList.add('danger');
+      else if (act0.remaining_seconds <= 30) timer.classList.add('warn');
+    }
 
     if (act0.timed_out) {
       if (!step2TimeoutPlayed) {
@@ -1406,7 +2138,7 @@ function renderStep2(state) {
         playTimeoutSound();
       }
       submitBtn.textContent = 'Enter the teams';
-      submitBtn.disabled = false;
+      updateStep2SubmitState(act0);
       statusEl.textContent = 'TIME EXPIRED';
       statusEl.className = 's2-status err';
       hintEl.textContent =
@@ -1414,7 +2146,7 @@ function renderStep2(state) {
         + `${act0.team_count || 4} squads (max ${act0.max_members || MAX_MEMBERS_PER_SQUAD} per team).`;
     } else {
       submitBtn.textContent = 'Register teams';
-      submitBtn.disabled = !act0.active;
+      updateStep2SubmitState(act0);
       statusEl.textContent = '';
       statusEl.className = 's2-status';
       hintEl.textContent = step2HintText(act0);
@@ -1422,7 +2154,7 @@ function renderStep2(state) {
       if (act0.narration_id && act0.narration_id !== lastStep2NarrationId) {
         lastStep2NarrationId = act0.narration_id;
         playAlertSound();
-        setTimeout(() => playAriaTTS('step2', narration), 400);
+        setTimeout(() => playAriaTTS('step2', narration, null, { robotic: true }), 400);
       }
     }
   }
@@ -1435,6 +2167,11 @@ document.getElementById('s2Form').addEventListener('submit', async (ev) => {
   const teamCount = lastState?.act0?.team_count || 4;
   const maxMembers = lastState?.act0?.max_members || MAX_MEMBERS_PER_SQUAD;
   const form = document.getElementById('s2Form');
+  if (!isStep2RegistrationReady(lastState?.act0)) {
+    statusEl.textContent = 'Enter all team names and all player names first.';
+    statusEl.className = 's2-status err';
+    return;
+  }
   const teams = [];
   for (let i = 0; i < teamCount; i++) {
     const members = [];
@@ -1479,14 +2216,14 @@ document.getElementById('s2Form').addEventListener('submit', async (ev) => {
   } catch (err) {
     statusEl.textContent = String(err.message).toUpperCase();
     statusEl.className = 's2-status err';
-    submitBtn.disabled = false;
+    updateStep2SubmitState(lastState?.act0);
   }
 });
 
 document.getElementById('s2ContinueBtn').addEventListener('click', async () => {
   const btn = document.getElementById('s2ContinueBtn');
   btn.disabled = true;
-  if (ariaAudio) { ariaAudio.pause(); ariaAudio = null; }
+  if (ariaAudio) releaseAriaAudio();
   try {
     const res = await fetch(`${API}/gm/step/3/begin`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed');
@@ -1506,11 +2243,31 @@ document.getElementById('s2ContinueBtn').addEventListener('click', async () => {
 
 function renderPhraseLine(layers) {
   return layers.map(layer => {
-    const word = (layer.revealed_word || '').toUpperCase();
-    if (word) {
-      return `<span class="phrase-word revealed">${escapeHtml(word)}</span>`;
-    }
-    return `<span class="phrase-word empty" style="--slots:${layer.letters || 4}"></span>`;
+    const slots = layer.digit_slots || [];
+    const slotCount = layer.letters || slots.length || 4;
+    const title = escapeHtml(layer.name || `M${layer.id}`);
+    const wordRevealed = layer.passphrase_revealed && layer.revealed_word;
+    const teamLine = wordRevealed && layer.revealed_by
+      ? `<span class="phrase-revealed-by">Sent by ${escapeHtml(layer.revealed_by)}</span>`
+      : '';
+    const wordHtml = wordRevealed
+      ? `<span class="phrase-word revealed word-reveal">${escapeHtml(layer.revealed_word)}</span>${teamLine}`
+      : layer.cleared
+        ? `<span class="phrase-word revealed cleared" style="--slots:${slotCount}"></span>`
+        : `<span class="phrase-word empty" style="--slots:${slotCount}"></span>`;
+    const digitsHtml = layer.cleared && slots.length
+      ? `<div class="phrase-digits-row">
+            ${slots.map(slot => `
+              <span class="phrase-digit">${slot.value ? escapeHtml(slot.value) : '?'}</span>
+            `).join('')}
+          </div>`
+      : '';
+    return `
+      <div class="phrase-mission-group" title="${title}">
+        ${wordHtml}
+        ${digitsHtml}
+      </div>
+    `;
   }).join('');
 }
 
@@ -1588,14 +2345,30 @@ function mountDigitPanel(activeLayer, gameOver) {
   mount.appendChild(panel);
 }
 
-function renderMissionInstruction(layer) {
-  if (layer.active) return '';
-  const text = (layer.instruction || '').trim();
-  if (!text) return '';
+function renderMission6Row(m6) {
+  if (!m6) return '';
+  const cleared = Boolean(m6.cleared);
+  const active = Boolean(m6.active);
+  const locked = !m6.unlocked;
+  const claimed = m6.phrases_claimed || 0;
+  const total = m6.phrases_total || 5;
+  const status = cleared
+    ? '<span class="mission-badge cleared">COMPLETE</span>'
+    : active
+      ? '<span class="mission-badge armed">ACTIVE</span>'
+      : '<span class="mission-badge">LOCKED</span>';
+  const progress = `${claimed}/${total} phrases submitted · +${m6.points_per_phrase || 150} pts each`;
+
   return `
-    <div class="mission-instruction">
-      <span class="mission-instruction-label">Mission briefing</span>
-      ${escapeHtml(text)}
+    <div class="mission-row mission-six ${cleared ? 'cleared' : ''} ${active ? 'active' : ''} ${locked ? 'locked collapsed' : ''}" data-mission-id="${m6.id}">
+      <div class="mission-head">
+        <div class="mission-num">M${m6.id}</div>
+        <div class="mission-info">
+          <div class="name">${escapeHtml(m6.name || 'DEFEAT ARIA')}</div>
+          <div class="meta">${progress}</div>
+        </div>
+        <div class="mission-status">${status}</div>
+      </div>
     </div>
   `;
 }
@@ -1604,8 +2377,10 @@ function renderMissionBoard(layers, state) {
   const board = document.getElementById('missionBoard');
   const panel = document.getElementById('digitPanel');
   const formActive = panel?.contains(document.activeElement);
+  const needsM6 = Boolean(state.mission_6?.unlocked);
+  const hasM6 = Boolean(board.querySelector('.mission-row[data-mission-id="6"]'));
 
-  if (formActive && board.children.length) {
+  if (formActive && board.children.length && !(needsM6 && !hasM6)) {
     layers.forEach(layer => {
       const row = board.querySelector(`.mission-row[data-mission-id="${layer.id}"]`);
       if (!row) return;
@@ -1620,20 +2395,16 @@ function renderMissionBoard(layers, state) {
           ? `${layer.digits_found || 0}/${layer.digits_total} digits found`
           : `${layer.letters} letters`;
       }
-      const instr = row.querySelector('.mission-instruction');
-      const instrHtml = renderMissionInstruction(layer);
-      if (layer.active && instr) {
-        instr.remove();
-      } else if (instr && instrHtml) {
-        instr.outerHTML = instrHtml;
-      } else if (!instr && instrHtml) {
-        const body = row.querySelector('.mission-body');
-        const bar = body?.querySelector('.mission-slot-bar');
-        if (body && bar) bar.insertAdjacentHTML('afterend', instrHtml);
-      } else if (instr && !instrHtml) {
-        instr.remove();
-      }
     });
+    const m6row = board.querySelector('.mission-row[data-mission-id="6"]');
+    const m6 = state.mission_6;
+    if (m6row && m6) {
+      const meta = m6row.querySelector('.mission-info .meta');
+      if (meta) {
+        meta.textContent =
+          `${m6.phrases_claimed || 0}/${m6.phrases_total || 5} phrases submitted · +${m6.points_per_phrase || 150} pts each`;
+      }
+    }
     syncDigitSquadOptions(state);
     return;
   }
@@ -1667,12 +2438,11 @@ function renderMissionBoard(layers, state) {
         </div>
         <div class="mission-body">
           ${renderMissionSlotBar(layer)}
-          ${cleared ? renderMissionInstruction(layer) : ''}
           ${winners ? `<div class="mission-winners">${winners}</div>` : ''}
         </div>
       </div>
     `;
-  }).join('');
+  }).join('') + renderMission6Row(state.mission_6);
 
   const activeLayer = layers.find(l => l.active);
   mountDigitPanel(activeLayer, state.game_over);
@@ -1698,17 +2468,53 @@ function renderSquadMembers(squad, state) {
   return `<div class="lb-members">${list.map(m => escapeHtml(m)).join(' · ')}</div>`;
 }
 
+function stopMissionClockTick() {
+  if (missionClockTick) {
+    clearInterval(missionClockTick);
+    missionClockTick = null;
+  }
+}
+
+function syncMissionClock(timer) {
+  stopMissionClockTick();
+  missionClockSecs = Math.max(0, timer.remaining_seconds ?? 0);
+  document.getElementById('missionClock').textContent = fmtTime(missionClockSecs);
+  if (timer.running && missionClockSecs > 0) {
+    missionClockTick = setInterval(() => {
+      if (missionClockSecs > 0) {
+        missionClockSecs--;
+        document.getElementById('missionClock').textContent = fmtTime(missionClockSecs);
+      } else {
+        stopMissionClockTick();
+      }
+    }, 1000);
+  }
+}
+
 function renderMission(state) {
-  const timer = state.timer || {};
-  document.getElementById('missionClock').textContent =
-    fmtTime(timer.remaining_seconds ?? 0);
+  syncMissionClock(state.timer || {});
+
+  if ((state.game_over_event_id || 0) > lastGameOverEventId) {
+    lastGameOverEventId = state.game_over_event_id;
+    if (state.game_over) showVictoryCelebration(state);
+  } else if (!state.game_over) {
+    lastGameOverEventId = 0;
+    hideVictoryCelebration();
+    const hostileEl = document.querySelector('.mission-top-meta .hostile');
+    if (hostileEl) hostileEl.textContent = 'ARIA: HOSTILE';
+  }
 
   const clearedCount = (state.layers || []).filter(l => l.cleared).length;
+  const m6 = state.mission_6 || {};
   const layersEl = document.getElementById('missionLayers');
   if (state.game_over) {
     layersEl.textContent = state.winner
-      ? `OVERRIDE BY ${state.winner}`
-      : 'PROTOCOL COMPLETE';
+      ? `ARIA DEFEATED · ${state.winner} LEADS`
+      : 'ARIA DEFEATED · HUMANS WIN';
+  } else if (m6.active) {
+    layersEl.textContent = `MISSION 6 — ${m6.phrases_claimed || 0}/${m6.phrases_total || 5} PHRASES`;
+  } else if (m6.cleared) {
+    layersEl.textContent = 'MISSION 6 COMPLETE';
   } else {
     layersEl.textContent = `${5 - clearedCount} MISSIONS REMAINING`;
   }
@@ -1718,6 +2524,11 @@ function renderMission(state) {
     else playSuccessSound();
   }
   lastScoreEventId = state.last_score_event?.id || state.score_event_id || 0;
+
+  if ((state.passphrase_reveal_event_id || 0) > lastPassphraseRevealEventId) {
+    playPhraseRevealSound();
+    lastPassphraseRevealEventId = state.passphrase_reveal_event_id;
+  }
 
   const layers = state.layers || [];
   document.getElementById('phrasePuzzle').innerHTML = renderPhraseLine(layers);
@@ -1827,6 +2638,8 @@ function render(state) {
     lastStep2TeamCount = 0;
     lastStep2MaxMembers = 0;
     step2TimeoutPlayed = false;
+    lastGameOverEventId = 0;
+    hideVictoryCelebration();
     document.getElementById('acceptBtn')?.classList.remove('show');
     document.getElementById('startBtn').disabled = false;
   }
@@ -1834,8 +2647,12 @@ function render(state) {
   showStep(step);
 
   if (step === STEPS.INTRO) renderStep1(state);
-  if (step === STEPS.TEAM_BUILD) renderStep2(state);
+  if (step === STEPS.TEAM_BUILD) {
+    stopMissionClockTick();
+    renderStep2(state);
+  }
   if (step >= STEPS.MISSION) renderMission(state);
+  else if (step < STEPS.MISSION) stopMissionClockTick();
 }
 
 async function poll() {

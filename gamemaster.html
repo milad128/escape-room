@@ -125,6 +125,92 @@
     border-color: rgba(251, 113, 133, 0.35);
   }
   .btn-reboot:hover:not(:disabled) { background: rgba(251, 113, 133, 0.25); }
+  .btn-pause {
+    color: var(--amber);
+    background: var(--amber-soft);
+    border-color: rgba(251, 191, 36, 0.35);
+  }
+  .btn-pause:hover:not(:disabled) { background: rgba(251, 191, 36, 0.2); }
+  .btn-resume {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.35);
+  }
+  .btn-resume:hover:not(:disabled) { background: rgba(16, 185, 129, 0.22); }
+  .timer-controls[hidden] { display: none; }
+  .timer-controls {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border);
+  }
+  .timer-status {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    margin: 0 0 12px;
+    text-align: center;
+    line-height: 1.45;
+  }
+  .timer-add-block {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border);
+  }
+  .timer-add-block label {
+    display: block;
+    font-family: var(--sans);
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+  .timer-add-block input[type="number"] {
+    width: 100%;
+    background: rgba(3, 7, 18, 0.6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xs);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 600;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -moz-appearance: textfield;
+  }
+  .timer-add-block input[type="number"]::-webkit-inner-spin-button,
+  .timer-add-block input[type="number"]::-webkit-outer-spin-button {
+    opacity: 1;
+  }
+  .timer-add-block input[type="number"]:focus {
+    border-color: var(--cyan);
+    box-shadow: 0 0 0 3px var(--cyan-soft);
+  }
+  .btn-add-time {
+    display: block;
+    width: 100%;
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    border: 1px solid rgba(0, 229, 255, 0.35);
+    margin-bottom: 0;
+    transition: all 0.25s;
+    color: var(--cyan);
+    background: rgba(0, 229, 255, 0.1);
+  }
+  .btn-add-time:hover:not(:disabled) {
+    background: rgba(0, 229, 255, 0.2);
+    box-shadow: var(--glow-cyan);
+  }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .btn-hint {
     font-size: 10px;
@@ -464,6 +550,19 @@
       <button type="button" class="btn btn-reboot" id="btnReboot">Reboot</button>
       <p class="btn-hint">Clear teams, scores &amp; leaderboard. GM settings are kept.</p>
 
+      <div class="timer-controls" id="timerControls" hidden>
+        <p class="timer-status" id="timerStatus">Mission timer —</p>
+        <button type="button" class="btn btn-pause" id="btnPauseGame">PAUSE GAME</button>
+        <button type="button" class="btn btn-resume" id="btnResumeGame" hidden>RESUME GAME</button>
+        <p class="btn-hint">Pause saves the remaining time. Resume continues from that value.</p>
+        <div class="timer-add-block">
+          <label for="cfgTimerAddMin">Extend mission timer (minutes)</label>
+          <input type="number" id="cfgTimerAddMin" min="5" max="120" value="15" />
+          <button type="button" class="btn-add-time" id="btnAddTime">ADD TIME</button>
+          <p class="btn-hint" style="margin-top:10px;margin-bottom:0">Adds minutes when the countdown is running low.</p>
+        </div>
+      </div>
+
       <div class="msg" id="actionMsg"></div>
     </div>
 
@@ -492,8 +591,9 @@
         <div class="config-block" style="margin-bottom:12px">
           <h3 style="font-size:11px;letter-spacing:2px;color:var(--amber);margin-bottom:8px">Digit entry scores</h3>
           <p class="mapping-legend" style="margin-bottom:8px">
-            When a team submits a correct digit, the 1st team gets Max score, the 2nd gets Max − Minus,
-            the 3rd gets Max − (2×Minus), and so on (minimum 0).
+            When a team submits a correct digit in a mission, scoring is by speed across
+            <strong>all digit entries in that mission</strong>: 1st entry → Max,
+            2nd entry → Max − Minus, 3rd → Max − (2×Minus), and so on (any digit slot).
           </p>
           <div class="digit-scores-grid">
             <div class="config-field">
@@ -583,10 +683,16 @@ const cfgDigitMinusScore = document.getElementById('cfgDigitMinusScore');
 const cfgDigitWrongPenalty = document.getElementById('cfgDigitWrongPenalty');
 const passphraseFields = document.getElementById('passphraseFields');
 let editingConfig = false;
+let editingStep2Config = false;
 let editingMissionConfig = false;
 let missionLayers = [];
 let m1ResolvedInstruction = '';
 let m1CipherTimer = null;
+
+function markEditingStep2Config() {
+  editingStep2Config = true;
+  editingConfig = true;
+}
 
 function markEditingMissionConfig() {
   editingMissionConfig = true;
@@ -719,6 +825,7 @@ function buildPassphraseFields(layers) {
               .includes(active)
               && !editingMission) {
             editingConfig = false;
+            editingStep2Config = false;
           }
         }, 100);
       });
@@ -902,6 +1009,11 @@ function fillStep2Config(step2) {
   updateStep2MembersHint();
 }
 
+[cfgStep1Text, cfgStep2Text, cfgStep2Timer, cfgStep2Teams, cfgStep2Players].forEach(el => {
+  el.addEventListener('focus', markEditingStep2Config);
+  el.addEventListener('input', markEditingStep2Config);
+});
+
 [cfgStep2Teams, cfgStep2Players].forEach(el => {
   el.addEventListener('input', updateStep2MembersHint);
 });
@@ -923,6 +1035,7 @@ function fillStep2Config(step2) {
           .includes(active)
           && !editingMission) {
         editingConfig = false;
+        editingStep2Config = false;
       }
     }, 100);
   });
@@ -976,14 +1089,16 @@ document.getElementById('btnSaveStep2').addEventListener('click', async () => {
   const msg = document.getElementById('cfgStep2Msg');
   btn.disabled = true;
   try {
-    await postJson('/gm/config/step2', {
+    const saved = await postJson('/gm/config/step2', {
       narration: cfgStep2Text.value,
       duration_seconds: parseInt(cfgStep2Timer.value, 10) || 60,
       team_count: parseInt(cfgStep2Teams.value, 10) || 4,
       player_count: parseInt(cfgStep2Players.value, 10) || 24,
     });
+    editingStep2Config = false;
+    fillStep2Config(saved);
     setConfigMsg(msg, 'Step 2 saved.', true);
-    editingConfig = false;
+    await refresh();
   } catch (e) {
     setConfigMsg(msg, e.message, false);
   } finally {
@@ -1006,10 +1121,17 @@ document.getElementById('btnStart').addEventListener('click', async () => {
 });
 
 document.getElementById('btnResetAct').addEventListener('click', async () => {
-  if (!confirm('Reset act progress? Scores cleared. Current step restarts. Teams are kept.')) return;
+  if (!confirm(
+    'Reset act progress? Scores cleared. On Step 3, all missions restart and the timer begins again. Teams are kept.'
+  )) return;
   try {
     const data = await post('/gm/reset-act');
-    setMsg(`Act reset — ${data.step !== undefined ? 'step ' + data.step : 'done'}.`, true);
+    setMsg(
+      (data.step ?? 0) >= 3
+        ? 'Mission reset — progress cleared, timer restarted.'
+        : `Act reset — step ${data.step ?? 'done'}.`,
+      true
+    );
   } catch (e) {
     setMsg(e.message, false);
   }
@@ -1025,6 +1147,87 @@ document.getElementById('btnReboot').addEventListener('click', async () => {
     setMsg(e.message, false);
   }
   refresh();
+});
+
+function fmtTimer(seconds) {
+  const s = Math.max(0, parseInt(seconds, 10) || 0);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  }
+  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
+
+function updateTimerControls(data) {
+  const panel = document.getElementById('timerControls');
+  const statusEl = document.getElementById('timerStatus');
+  const btnPause = document.getElementById('btnPauseGame');
+  const btnResume = document.getElementById('btnResumeGame');
+  const timer = data.timer || {};
+  const onMission = data.step === 3;
+
+  panel.hidden = !onMission;
+  if (!onMission) return;
+
+  const remaining = timer.remaining_seconds ?? 0;
+  if (timer.paused) {
+    statusEl.textContent = `Mission timer paused — ${fmtTimer(remaining)} remaining`;
+    btnPause.hidden = true;
+    btnResume.hidden = false;
+  } else if (timer.running) {
+    statusEl.textContent = `Mission timer running — ${fmtTimer(remaining)} remaining`;
+    btnPause.hidden = false;
+    btnResume.hidden = true;
+  } else {
+    statusEl.textContent = `Mission timer idle — ${fmtTimer(remaining)}`;
+    btnPause.hidden = true;
+    btnResume.hidden = true;
+  }
+}
+
+document.getElementById('btnPauseGame').addEventListener('click', async () => {
+  const btn = document.getElementById('btnPauseGame');
+  btn.disabled = true;
+  try {
+    const data = await post('/gm/timer/pause');
+    setMsg(`Game paused — ${fmtTimer(data.remaining_seconds)} saved.`, true);
+  } catch (e) {
+    setMsg(e.message, false);
+  } finally {
+    btn.disabled = false;
+    refresh();
+  }
+});
+
+document.getElementById('btnAddTime').addEventListener('click', async () => {
+  const btn = document.getElementById('btnAddTime');
+  const mins = parseInt(document.getElementById('cfgTimerAddMin').value, 10) || 15;
+  btn.disabled = true;
+  try {
+    const data = await postJson('/gm/timer/add', { seconds: mins * 60 });
+    setMsg(`+${mins} min added — ${fmtTimer(data.remaining_seconds)} on the clock.`, true);
+  } catch (e) {
+    setMsg(e.message, false);
+  } finally {
+    btn.disabled = false;
+    refresh();
+  }
+});
+
+document.getElementById('btnResumeGame').addEventListener('click', async () => {
+  const btn = document.getElementById('btnResumeGame');
+  btn.disabled = true;
+  try {
+    const data = await post('/gm/timer/resume');
+    setMsg(`Game resumed — ${fmtTimer(data.remaining_seconds)} on the clock.`, true);
+  } catch (e) {
+    setMsg(e.message, false);
+  } finally {
+    btn.disabled = false;
+    refresh();
+  }
 });
 
 function renderTeams(teams) {
@@ -1074,6 +1277,8 @@ async function refresh() {
     document.getElementById('stepLabel').textContent = data.step_label || `Step ${data.step}`;
     if (!editingConfig && data.config) {
       cfgStep1Text.value = data.config.step1?.narration || '';
+    }
+    if (!editingStep2Config && data.config?.step2) {
       fillStep2Config(data.config.step2);
     }
     if (!editingMissionConfig && data.config?.mission) {
@@ -1086,6 +1291,7 @@ async function refresh() {
       }
     }
     document.getElementById('btnStart').disabled = data.step !== 0;
+    updateTimerControls(data);
     renderTeams(data.teams || []);
   } catch (_) {
     document.getElementById('connDot').style.background = 'var(--red)';

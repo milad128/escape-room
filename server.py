@@ -2,8 +2,8 @@
 
 A small FastAPI app for the team-building game. It:
   * Serves game.html at / and gamemaster.html at /gamemaster
-  * Exposes one POST endpoint per "layer" (act). Squads must discover both
-    the URL path *and* the correct passphrase as part of each act's puzzle.
+  * Exposes digit POST for missions 1–5 and passphrase POST for mission 6 (finale).
+  * Mission 6 unlocks after all mission 5 digits are found; each correct passphrase +150 pts.
   * Exposes /state for the leaderboard to poll (live updates).
   * Exposes /gm/* endpoints for the Game Master to start/pause the timer,
     reset, and adjust scores.
@@ -21,6 +21,7 @@ import asyncio
 import copy
 import hashlib
 import random
+import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,17 +57,20 @@ SQUADS: list[str] = ["VIPER", "FALCON", "GHOST", "CIPHER"]
 #   * passphrase: the word they must POST in the body
 #   * name: display name on the leaderboard
 #
-# IMPORTANT: change the routes and passphrases before the event. The squads
-# will guess these from the in-game clues you give them.
+# IMPORTANT: change passphrases before the event. Routes are derived from mission
+# names in GM config (slugified): e.g. "HIDE AND SEEK" → POST /api/mission/hide-and-seek
 LAYERS: dict[int, dict[str, str]] = {
-    1: {"name": "FIREWALL", "route": "/api/firewall/breach",   "passphrase": "HUMANS"},
-    2: {"name": "PROTOCOL", "route": "/api/protocol/inject",   "passphrase": "SHIP"},
-    3: {"name": "SERVER",   "route": "/api/server/override",   "passphrase": "BETTER"},
-    4: {"name": "SPRINT",   "route": "/api/sprint/deploy",     "passphrase": "TOGETHER"},
-    5: {"name": "SHUTDOWN", "route": "/api/shutdown/execute",  "passphrase": "ALWAYS"},
+    1: {"name": "HIDE AND SEEK", "passphrase": "HUMANS"},
+    2: {"name": "STRESS IS A MENTAL STATE", "passphrase": "SHIP"},
+    3: {"name": "KNOWLEDGE IS POWER", "passphrase": "BETTER"},
+    4: {"name": "WE HEAR EACH OTHER", "passphrase": "TOGETHER"},
+    5: {"name": "LIVE THE LIFE", "passphrase": "ALWAYS"},
 }
 
 POINTS_BY_RANK: dict[int, int] = {1: 3, 2: 2, 3: 1, 4: 0}
+MISSION_6_ID: int = 6
+MISSION_6_NAME: str = "DEFEAT ARIA"
+PASSPHRASE_POST_SCORE: int = 150  # Mission 6 only — one award per phrase globally
 
 DEFAULT_DIGIT_MAX_SCORE: int = 100
 DEFAULT_DIGIT_MINUS_SCORE: int = 20
@@ -74,6 +78,21 @@ DEFAULT_DIGIT_WRONG_PENALTY: int = 1
 MAX_DIGIT_CLAIMS_PER_SLOT: int = 4
 
 DEFAULT_TIMER_SECONDS: int = 3 * 60 * 60  # 3 hours
+
+DEFAULT_FINALE_MAPPING_CLUE: str = (
+    "The protocol phrase shows digit clusters from five missions. "
+    "Each mission used its own cipher — they do not all decode the same way. "
+    "Missions 1 and 4 share one method. Missions 2 and 5 share another. "
+    "Mission 3 is different again. Group the numbers under each mission slot "
+    "to recover one word per mission."
+)
+DEFAULT_FINALE_POSTMAN_CLUE: str = (
+    "ARIA only accepts defeat through a direct API override. "
+    "Use Postman (or curl): POST request, Content-Type application/json, "
+    'body {"squad": "YOUR TEAM NAME", "passphrase": "RECOVERED WORD"}. '
+    "Each mission path is /api/mission/ followed by the mission name in lowercase "
+    "with hyphens instead of spaces. Use this server's address as the host."
+)
 
 # Game steps (projector runs through these in order).
 STEP_IDLE = 0          # white screen · GM clicks Start
@@ -90,10 +109,10 @@ STEP1_NARRATION: str = (
     "زمان شما محدود است. "
     "کلید پیروزی فقط یک چیز است: همکاری."
 )
-STEP1_TTS_CACHE_KEY: str = "step1_v4_female"
-STEP1_TTS_VOICE: str = "fa-IR-DilaraNeural"
-STEP1_TTS_RATE: str = "-5%"
-STEP1_TTS_PITCH: str = "+8Hz"
+STEP1_TTS_CACHE_KEY: str = "step1_v5_robotic"
+STEP1_TTS_VOICE: str = "fa-IR-FaridNeural"
+STEP1_TTS_RATE: str = "+6%"
+STEP1_TTS_PITCH: str = "+0Hz"
 
 # Step 2 — team-building.
 ACT0_DURATION_SECONDS: int = 60
@@ -113,10 +132,10 @@ ACT0_SHUFFLE_ARIA: str = (
     "می‌دانستم نمی‌توانید همکاری کنید. "
     "پس در کمتر از یک ثانیه آن را برایتان ساختم."
 )
-STEP2_TTS_CACHE_KEY: str = "step2_v2_female"
-STEP2_TTS_VOICE: str = "fa-IR-DilaraNeural"
-STEP2_TTS_RATE: str = "-5%"
-STEP2_TTS_PITCH: str = "+8Hz"
+STEP2_TTS_CACHE_KEY: str = "step2_v3_robotic"
+STEP2_TTS_VOICE: str = "fa-IR-FaridNeural"
+STEP2_TTS_RATE: str = "+6%"
+STEP2_TTS_PITCH: str = "+0Hz"
 
 # Passphrase digit encodings — one type per mission (cycles M1→M5).
 MISSION_MAPPING_TYPES: list[str] = ["a1z26", "ascii", "phone"]
@@ -158,6 +177,10 @@ def _default_step_config() -> dict:
             "digit_minus_score": DEFAULT_DIGIT_MINUS_SCORE,
             "digit_wrong_penalty": DEFAULT_DIGIT_WRONG_PENALTY,
             "instructions": {1: ""},
+        },
+        "finale": {
+            "mapping_clue": DEFAULT_FINALE_MAPPING_CLUE,
+            "postman_clue": DEFAULT_FINALE_POSTMAN_CLUE,
         },
     }
 
@@ -235,6 +258,26 @@ def get_layer_passphrase(layer: int) -> str:
     ).upper().strip()
 
 
+def mission_name_to_slug(name: str) -> str:
+    """URL slug from mission display name: 'WE HEAR EACH OTHER' → 'we-hear-each-other'."""
+    slug = name.lower().strip()
+    slug = re.sub(r"[^a-z0-9]+", "-", slug)
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    return slug or "mission"
+
+
+def get_layer_route(layer: int) -> str:
+    return f"/api/mission/{mission_name_to_slug(get_layer_name(layer))}"
+
+
+def resolve_layer_from_slug(slug: str) -> int | None:
+    target = slug.lower().strip().strip("/")
+    for lyr in LAYERS:
+        if mission_name_to_slug(get_layer_name(lyr)) == target:
+            return lyr
+    return None
+
+
 def _build_default_m1_instruction(phrase: str | None = None) -> str:
     word = (phrase or LAYERS[1]["passphrase"]).upper().strip()
     mapping = get_layer_mapping_type(1)
@@ -261,6 +304,175 @@ def get_layer_instruction(layer: int) -> str:
 
 def get_layer_mapping_type(layer: int) -> str:
     return MISSION_MAPPING_TYPES[(layer - 1) % len(MISSION_MAPPING_TYPES)]
+
+
+def _ensure_finale_config() -> dict:
+    finale = _step_config().setdefault("finale", {})
+    finale.setdefault("mapping_clue", DEFAULT_FINALE_MAPPING_CLUE)
+    finale.setdefault("postman_clue", DEFAULT_FINALE_POSTMAN_CLUE)
+    return finale
+
+
+def get_finale_mapping_clue() -> str:
+    return _ensure_finale_config()["mapping_clue"]
+
+
+def get_finale_postman_clue() -> str:
+    return _ensure_finale_config()["postman_clue"]
+
+
+def _ensure_layer_passphrase_revealed() -> dict[int, str | None]:
+    if "layer_passphrase_revealed" not in state:
+        state["layer_passphrase_revealed"] = {lyr: None for lyr in LAYERS}
+    revealed = state["layer_passphrase_revealed"]
+    for lyr in LAYERS:
+        if lyr not in revealed:
+            revealed[lyr] = None
+    return revealed
+
+
+def _ensure_layer_passphrase_post_order() -> dict[int, list[str]]:
+    if "layer_passphrase_post_order" not in state:
+        state["layer_passphrase_post_order"] = {lyr: [] for lyr in LAYERS}
+    order = state["layer_passphrase_post_order"]
+    for lyr in LAYERS:
+        order.setdefault(lyr, [])
+    return order
+
+
+def _layer_passphrase_claimed_by(layer: int) -> str | None:
+    """Squad that already accepted this mission's passphrase (one claim per phrase)."""
+    post_order = _ensure_layer_passphrase_post_order().get(layer, [])
+    if post_order:
+        return post_order[0]
+    for squad in state["squad_names"]:
+        if state["squads"][squad]["passphrases"].get(layer) is not None:
+            return squad
+    return None
+
+
+def _ensure_layer_passphrase_revealed_by() -> dict[int, str | None]:
+    if "layer_passphrase_revealed_by" not in state:
+        state["layer_passphrase_revealed_by"] = {lyr: None for lyr in LAYERS}
+    revealed_by = state["layer_passphrase_revealed_by"]
+    for lyr in LAYERS:
+        if lyr not in revealed_by:
+            revealed_by[lyr] = None
+    return revealed_by
+
+
+def is_mission_6_unlocked() -> bool:
+    """True once all mission 5 digits are found — mission 6 (POST passphrases) begins."""
+    return _layer_digits_complete(5)
+
+
+def mission_6_phrases_claimed() -> int:
+    return sum(1 for lyr in LAYERS if _layer_passphrase_claimed_by(lyr) is not None)
+
+
+def is_mission_6_complete() -> bool:
+    return mission_6_phrases_claimed() == len(LAYERS)
+
+
+def is_mission_6_active() -> bool:
+    """Mission 6 accepts passphrase POSTs until every phrase is claimed."""
+    return is_mission_6_unlocked() and not is_mission_6_complete() and not state["game_over"]
+
+
+def is_finale_phase() -> bool:
+    return is_mission_6_unlocked()
+
+
+def mission_6_snapshot() -> dict:
+    claimed = mission_6_phrases_claimed()
+    return {
+        "id": MISSION_6_ID,
+        "name": MISSION_6_NAME,
+        "unlocked": is_mission_6_unlocked(),
+        "active": is_mission_6_active(),
+        "cleared": is_mission_6_complete(),
+        "phrases_total": len(LAYERS),
+        "phrases_claimed": claimed,
+        "points_per_phrase": PASSPHRASE_POST_SCORE,
+    }
+
+
+def is_layer_passphrase_revealed(layer: int) -> bool:
+    return _ensure_layer_passphrase_revealed().get(layer) is not None
+
+
+def _apply_passphrase_reveal(layer: int, squad: str) -> bool:
+    """Show passphrase word on the projector for the first squad that POSTed it."""
+    revealed = _ensure_layer_passphrase_revealed()
+    if revealed.get(layer) is not None:
+        return False
+    word = get_layer_passphrase(layer)
+    revealed[layer] = word
+    _ensure_layer_passphrase_revealed_by()[layer] = squad
+    _record_passphrase_reveal(layer, squad)
+    add_transmission(
+        f"PROTOCOL PHRASE :: M{layer} '{word}' REVEALED BY {squad}",
+        "success",
+    )
+    _persist()
+    return True
+
+
+def _sync_passphrase_reveal_for_layer(layer: int) -> bool:
+    """Mission 6 only — reveal when a squad POSTs the correct passphrase."""
+    if not is_mission_6_unlocked():
+        return False
+    if is_layer_passphrase_revealed(layer):
+        return False
+    post_order = _ensure_layer_passphrase_post_order().get(layer, [])
+    for squad in post_order:
+        posted = state["squads"].get(squad, {}).get("passphrases", {}).get(layer)
+        if posted:
+            return _apply_passphrase_reveal(layer, squad)
+    return False
+
+
+def _sync_all_passphrase_reveals() -> int:
+    """Check persisted POST history and reveal any pending passphrase words."""
+    count = 0
+    for lyr in sorted(LAYERS):
+        if _sync_passphrase_reveal_for_layer(lyr):
+            count += 1
+    return count
+
+
+def _record_passphrase_reveal(layer: int, squad: str) -> int:
+    state["passphrase_reveal_event_id"] = state.get("passphrase_reveal_event_id", 0) + 1
+    event_id = state["passphrase_reveal_event_id"]
+    state["last_passphrase_reveal"] = {
+        "id": event_id,
+        "layer": layer,
+        "squad": squad,
+    }
+    return event_id
+
+
+def _maybe_complete_protocol() -> None:
+    """End game when mission 6 has accepted every protocol word."""
+    if not is_mission_6_complete():
+        return
+    if state["winner"] is not None:
+        return
+    top = max(
+        state["squad_names"],
+        key=lambda s: state["squads"][s]["score"],
+    )
+    state["winner"] = top
+    state["game_over"] = True
+    state["game_over_event_id"] = state.get("game_over_event_id", 0) + 1
+    add_transmission(
+        f"ARIA DEFEATED :: HUMANS WIN :: {top} LEADS THE SCOREBOARD",
+        "success",
+    )
+    add_transmission(
+        "MISSION 6 COMPLETE :: ALL PROTOCOL WORDS CONFIRMED :: CELEBRATE",
+        "success",
+    )
 
 
 def _encode_a1z26(word: str) -> str:
@@ -407,7 +619,7 @@ def get_digit_minus_score() -> int:
 
 
 def get_digit_score_for_rank(rank: int) -> int:
-    """1st team: max score; each later rank loses one minus-score step."""
+    """1st correct digit in a mission: max; each later entry loses one minus-score step."""
     if rank < 1:
         return 0
     return max(0, get_digit_max_score() - (rank - 1) * get_digit_minus_score())
@@ -429,6 +641,15 @@ def _record_score_event(event_type: str) -> int:
 
 def normalize_digit_input(raw: str) -> str:
     return "".join(ch for ch in raw.upper().strip() if ch.isdigit())
+
+
+def passphrase_is_number_only(raw: str) -> bool:
+    """True when the submitted passphrase is only digits (not a decoded word)."""
+    stripped = raw.strip()
+    if not stripped:
+        return False
+    compact = "".join(ch for ch in stripped if not ch.isspace())
+    return bool(compact) and compact.isdigit()
 
 
 def get_layer_digit_parts(layer: int) -> list[str]:
@@ -455,6 +676,19 @@ def _ensure_layer_digit_claims() -> dict[int, dict[int, list[str]]]:
     return claims
 
 
+def _ensure_layer_digit_submission_log() -> dict[int, list[str]]:
+    if "layer_digit_submission_log" not in state:
+        state["layer_digit_submission_log"] = {lyr: [] for lyr in LAYERS}
+    log = state["layer_digit_submission_log"]
+    for lyr in LAYERS:
+        log.setdefault(lyr, [])
+    return log
+
+
+def _layer_digit_submission_count(layer: int) -> int:
+    return len(_ensure_layer_digit_submission_log().get(layer, []))
+
+
 def _layer_slot_claims(layer: int, position: int) -> list[str]:
     claims = _ensure_layer_digit_claims()
     return list(claims.get(layer, {}).get(position, []))
@@ -478,15 +712,14 @@ def get_active_layer() -> int | None:
 
 
 def _sync_layer_finish_order(layer: int) -> None:
-    """Keep finish_order in sync with digit claims for display."""
-    claims = _ensure_layer_digit_claims()
+    """Order squads by who entered a correct digit earliest in this mission."""
+    log = _ensure_layer_digit_submission_log().get(layer, [])
     squads: list[str] = []
     seen: set[str] = set()
-    for pos in sorted(claims.get(layer, {}).keys()):
-        for squad in claims[layer][pos]:
-            if squad not in seen:
-                squads.append(squad)
-                seen.add(squad)
+    for squad in log:
+        if squad not in seen:
+            squads.append(squad)
+            seen.add(squad)
     state["layer_finish_order"][layer] = squads
 
 
@@ -498,18 +731,12 @@ def _maybe_complete_layer(layer: int) -> None:
         f"MISSION {layer} ({get_layer_name(layer)}) BREACHED :: ALL DIGITS FOUND",
         "success",
     )
-    if all(_layer_digits_complete(lyr) for lyr in LAYERS):
-        if state["winner"] is None:
-            top = max(
-                state["squad_names"],
-                key=lambda s: state["squads"][s]["score"],
-            )
-            state["winner"] = top
-            state["game_over"] = True
-            add_transmission(
-                f"PROTOCOL OVERRIDE :: ALL MISSIONS CLEARED :: {top} LEADS",
-                "success",
-            )
+    if layer == 5:
+        add_transmission(
+            f"MISSION {MISSION_6_ID} ({MISSION_6_NAME}) ACTIVE :: "
+            f"POST RECOVERED WORDS TO ARIA :: +{PASSPHRASE_POST_SCORE} PTS EACH",
+            "info",
+        )
 
 
 def get_step1_narration() -> str:
@@ -552,7 +779,15 @@ def get_step2_max_members() -> int:
 
 def _gm_config_snapshot() -> dict:
     mission = _ensure_mission_config()
+    step2 = _ensure_step2_config()
     cfg = copy.deepcopy(_step_config())
+    cfg["step2"] = {
+        "narration": step2["narration"],
+        "duration_seconds": step2["duration_seconds"],
+        "team_count": step2["team_count"],
+        "player_count": step2["player_count"],
+        "max_members_per_team": get_step2_max_members(),
+    }
     cfg["mission"] = {
         "duration_seconds": mission["duration_seconds"],
         "names": {
@@ -571,6 +806,7 @@ def _gm_config_snapshot() -> dict:
             {
                 "id": lyr,
                 "name": get_layer_name(lyr),
+                "route": get_layer_route(lyr),
                 "passphrase": get_layer_passphrase(lyr),
                 "instruction": get_layer_instruction(lyr),
                 "instruction_cipher": encode_instruction_cipher(
@@ -629,8 +865,14 @@ def _default_state() -> dict:
         "squads": {s: _fresh_squad_state() for s in SQUADS},
         "squad_names": list(SQUADS),
         "layer_finish_order": {layer: [] for layer in LAYERS},
+        "layer_passphrase_revealed": {layer: None for layer in LAYERS},
+        "layer_passphrase_revealed_by": {layer: None for layer in LAYERS},
+        "layer_passphrase_post_order": {layer: [] for layer in LAYERS},
         "layer_digit_claims": {layer: {} for layer in LAYERS},
+        "layer_digit_submission_log": {layer: [] for layer in LAYERS},
         "score_event_id": 0,
+        "passphrase_reveal_event_id": 0,
+        "last_passphrase_reveal": {"id": 0, "layer": 0, "squad": ""},
         "last_score_event": {"id": 0, "type": "reward"},
         "timer": {
             "started_at": None,
@@ -643,6 +885,7 @@ def _default_state() -> dict:
         "transmissions": [],
         "game_over": False,
         "winner": None,
+        "game_over_event_id": 0,
     }
 
 
@@ -657,7 +900,7 @@ _tts_cache: dict[str, bytes] = {}
 
 @app.on_event("startup")
 async def _warm_tts_cache() -> None:
-    """Pre-generate ARIA voices on startup so the first play uses Dilara."""
+    """Pre-generate ARIA voices on startup so the first play is ready."""
     try:
         s1 = get_step1_narration()
         s2 = get_step2_narration()
@@ -826,17 +1069,65 @@ def submit(layer: int, payload: Submission):
         )
         raise HTTPException(403, detail=f"Squad '{payload.squad}' not recognized.")
 
+    if not is_mission_6_unlocked():
+        add_transmission(
+            f"{squad} :: Mission {MISSION_6_ID} REJECTED :: not yet active",
+            "warn",
+        )
+        raise HTTPException(
+            403,
+            detail=(
+                f"Mission {MISSION_6_ID} is not active yet. "
+                "Complete all five missions first."
+            ),
+        )
+
+    if state["game_over"]:
+        raise HTTPException(409, detail="Game is over.")
+
     if state["squads"][squad]["passphrases"][layer] is not None:
         raise HTTPException(
-            409, detail=f"Layer {layer} already cleared by {squad}."
+            409,
+            detail=(
+                f"{squad} already submitted a passphrase for "
+                f"mission {MISSION_6_ID} slot M{layer}."
+            ),
+        )
+
+    claimed_by = _layer_passphrase_claimed_by(layer)
+    if claimed_by is not None and claimed_by != squad:
+        add_transmission(
+            f"{squad} :: Mission {MISSION_6_ID} REJECTED :: "
+            f"M{layer} phrase already claimed by {claimed_by}",
+            "warn",
+        )
+        raise HTTPException(
+            409,
+            detail=(
+                f"Phrase for M{layer} already accepted from {claimed_by}. "
+                "Each phrase can only be submitted once."
+            ),
         )
 
     expected = get_layer_passphrase(layer)
     submitted = payload.passphrase.upper().strip()
 
+    if passphrase_is_number_only(payload.passphrase):
+        add_transmission(
+            f"{squad} :: Mission {MISSION_6_ID} REJECTED :: numeric passphrase",
+            "warn",
+        )
+        return JSONResponse(
+            status_code=403,
+            content={
+                "status": "denied",
+                "aria": "number is not a HUMAN language",
+            },
+        )
+
     if submitted != expected:
         add_transmission(
-            f"{squad} :: Layer {layer} REJECTED :: '{payload.passphrase}'",
+            f"{squad} :: Mission {MISSION_6_ID} REJECTED :: '{payload.passphrase}'",
             "warn",
         )
         return JSONResponse(
@@ -845,42 +1136,36 @@ def submit(layer: int, payload: Submission):
                 "status": "denied",
                 "aria": (
                     f"Incorrect. ARIA does not yield. "
-                    f"'{payload.passphrase}' is not the key for Layer {layer}."
+                    f"'{payload.passphrase}' is not a recovered protocol word."
                 ),
             },
         )
 
     state["squads"][squad]["passphrases"][layer] = expected
-    rank = len(state["layer_finish_order"][layer]) + 1
-    state["layer_finish_order"][layer].append(squad)
-    points = POINTS_BY_RANK.get(rank, 0)
+    post_order = _ensure_layer_passphrase_post_order()
+    if squad not in post_order[layer]:
+        post_order[layer].append(squad)
+    points = PASSPHRASE_POST_SCORE
     state["squads"][squad]["score"] += points
+    _record_score_event("reward")
+    _apply_passphrase_reveal(layer, squad)
 
     add_transmission(
-        f"{squad} :: Layer {layer} ({get_layer_name(layer)}) BREACHED "
-        f":: +{points} pts (rank #{rank})",
+        f"{squad} :: Mission {MISSION_6_ID} :: M{layer} '{expected}' ACCEPTED "
+        f":: +{points} pts",
         "success",
     )
 
-    if all(
-        state["squads"][squad]["passphrases"][lyr] is not None for lyr in LAYERS
-    ):
-        if state["winner"] is None:
-            state["winner"] = squad
-            state["game_over"] = True
-            add_transmission(
-                f"PROTOCOL OVERRIDE EXECUTED BY {squad} :: ARIA SHUTDOWN COMPLETE",
-                "success",
-            )
+    _maybe_complete_protocol()
 
     _persist()
     return {
         "status": "accepted",
         "aria": (
-            f"Acknowledged. Layer {layer} breached by {squad}. "
-            f"Rank #{rank}. +{points} points."
+            f"Acknowledged. Mission {MISSION_6_ID} word '{expected}' accepted "
+            f"from {squad}. +{points} points."
         ),
-        "rank": rank,
+        "mission": MISSION_6_ID,
         "points": points,
     }
 
@@ -963,7 +1248,9 @@ def submit_mission_digit(payload: DigitSubmission) -> dict:
         }
 
     slot = layer_claims.setdefault(chosen_pos, [])
-    rank = len(slot) + 1
+    submission_log = _ensure_layer_digit_submission_log()
+    rank = len(submission_log.setdefault(layer, [])) + 1
+    submission_log[layer].append(squad)
     slot.append(squad)
     points = get_digit_score_for_rank(rank)
     state["squads"][squad]["score"] += points
@@ -971,7 +1258,8 @@ def submit_mission_digit(payload: DigitSubmission) -> dict:
 
     _sync_layer_finish_order(layer)
     add_transmission(
-        f"{squad} :: M{layer} DIGIT #{chosen_pos + 1} :: +{points} pts (rank #{rank})",
+        f"{squad} :: M{layer} DIGIT #{chosen_pos + 1} :: +{points} pts "
+        f"(entry #{rank} in mission)",
         "success",
     )
     _maybe_complete_layer(layer)
@@ -991,10 +1279,36 @@ def submit_mission_digit(payload: DigitSubmission) -> dict:
     }
 
 
+def _start_mission_timer() -> bool:
+    """Start mission countdown if idle (not running and not paused)."""
+    timer = state["timer"]
+    if timer["paused_at"] is not None:
+        return False
+    if timer["started_at"] is not None:
+        return False
+    timer["started_at"] = time.time()
+    timer["paused_elapsed"] = 0.0
+    add_transmission("MISSION TIMER STARTED :: COUNTDOWN INITIATED", "info")
+    return True
+
+
+def _restart_mission_timer() -> None:
+    """Reset mission countdown to full duration and start immediately."""
+    duration = state["timer"]["duration_seconds"]
+    state["timer"] = {
+        "started_at": time.time(),
+        "duration_seconds": duration,
+        "paused_at": None,
+        "paused_elapsed": 0.0,
+    }
+    add_transmission("MISSION TIMER RESTARTED :: COUNTDOWN INITIATED", "info")
+
+
 def _start_step3() -> None:
     if state["step"] >= STEP_MISSION:
         return
     state["step"] = STEP_MISSION
+    _start_mission_timer()
     add_transmission("STEP 3 :: MISSION PROTOCOL INITIATED", "danger")
     _persist()
 
@@ -1255,9 +1569,15 @@ async def get_state():
                 "active": lyr == active_layer,
                 "finish_order": state["layer_finish_order"][lyr],
                 "cleared": _layer_digits_complete(lyr),
+                "passphrase_revealed": is_layer_passphrase_revealed(lyr),
                 "revealed_word": (
-                    get_layer_passphrase(lyr)
-                    if _layer_digits_complete(lyr)
+                    _ensure_layer_passphrase_revealed().get(lyr)
+                    if is_layer_passphrase_revealed(lyr)
+                    else None
+                ),
+                "revealed_by": (
+                    _ensure_layer_passphrase_revealed_by().get(lyr)
+                    if is_layer_passphrase_revealed(lyr)
                     else None
                 ),
                 "digit_slots": [
@@ -1280,14 +1600,28 @@ async def get_state():
             "remaining_seconds": remaining,
             "running": running,
             "started": started,
+            "paused": state["timer"]["paused_at"] is not None,
+            "duration_seconds": state["timer"]["duration_seconds"],
         },
+        "finale_phase": is_finale_phase(),
+        "mission_6": mission_6_snapshot(),
+        "finale": {
+            "mapping_clue": get_finale_mapping_clue(),
+            "postman_clue": get_finale_postman_clue(),
+        },
+        "passphrase_reveal_event_id": state.get("passphrase_reveal_event_id", 0),
+        "last_passphrase_reveal": state.get(
+            "last_passphrase_reveal", {"id": 0, "layer": 0, "squad": ""}
+        ),
         "game_over": state["game_over"],
         "winner": state["winner"],
+        "game_over_event_id": state.get("game_over_event_id", 0),
         "act0": {
             "active": act0["active"],
             "complete": act0["complete"],
             "timed_out": act0.get("timed_out", False),
             "shuffled": act0.get("shuffled", False),
+            "duration_seconds": act0["duration_seconds"],
             "remaining_seconds": act0_remaining,
             "running": act0_running,
             "started": act0_started,
@@ -1303,38 +1637,23 @@ async def get_state():
 
 
 # ----- Layer submission endpoints (one per act) -----
-# The squads must DISCOVER these URL paths via in-game clues; the leaderboard
-# does not display them.
-
-@app.post(LAYERS[1]["route"])
-async def submit_layer_1(payload: Submission):
-    return submit(1, payload)
-
-
-@app.post(LAYERS[2]["route"])
-async def submit_layer_2(payload: Submission):
-    return submit(2, payload)
-
-
-@app.post(LAYERS[3]["route"])
-async def submit_layer_3(payload: Submission):
-    return submit(3, payload)
-
-
-@app.post(LAYERS[4]["route"])
-async def submit_layer_4(payload: Submission):
-    return submit(4, payload)
-
-
-@app.post(LAYERS[5]["route"])
-async def submit_layer_5(payload: Submission):
-    return submit(5, payload)
-
+# Routes follow mission names: POST /api/mission/{slug}
+# e.g. /api/mission/hide-and-seek — squads must discover the path via clues.
 
 @app.post("/api/mission/digit")
 async def submit_mission_digit_endpoint(payload: DigitSubmission):
     """Teams submit a decoded digit for the active mission."""
     return submit_mission_digit(payload)
+
+
+@app.post("/api/mission/{mission_slug}")
+async def submit_mission_passphrase(mission_slug: str, payload: Submission):
+    if mission_slug.lower() == "digit":
+        raise HTTPException(404, detail="Not Found")
+    layer = resolve_layer_from_slug(mission_slug)
+    if layer is None:
+        raise HTTPException(404, detail="Not Found")
+    return submit(layer, payload)
 
 
 @app.post("/api/act0/register")
@@ -1365,6 +1684,16 @@ async def act0_register(payload: Act0Submission):
                     400, detail=f"Team {i} requires at least one member."
                 )
             teams.append({"name": name, "members": members})
+        total_members = sum(len(_parse_members_list(t["members"])) for t in teams)
+        required_players = get_step2_player_count()
+        if total_members < required_players:
+            raise HTTPException(
+                400,
+                detail=(
+                    f"Enter all {required_players} player names before registering. "
+                    f"({total_members} entered)"
+                ),
+            )
         status = "registered"
         transmission = (
             f"ACT 0 COMPLETE :: TEAMS REGISTERED :: "
@@ -1476,11 +1805,8 @@ async def gm_act0_complete():
 
 @app.post("/gm/timer/start")
 async def gm_timer_start():
-    state["timer"]["started_at"] = time.time()
-    state["timer"]["paused_at"] = None
-    state["timer"]["paused_elapsed"] = 0.0
-    add_transmission("MISSION TIMER STARTED :: COUNTDOWN INITIATED", "info")
-    _persist()
+    if _start_mission_timer():
+        _persist()
     return {"status": "started"}
 
 
@@ -1493,7 +1819,8 @@ async def gm_timer_pause():
         timer["started_at"] = None
         add_transmission("MISSION TIMER PAUSED", "warn")
     _persist()
-    return {"status": "paused"}
+    remaining, _, _ = compute_timer_remaining()
+    return {"status": "paused", "remaining_seconds": remaining}
 
 
 @app.post("/gm/timer/resume")
@@ -1504,7 +1831,8 @@ async def gm_timer_resume():
         timer["paused_at"] = None
         add_transmission("MISSION TIMER RESUMED", "info")
     _persist()
-    return {"status": "resumed"}
+    remaining, running, _ = compute_timer_remaining()
+    return {"status": "resumed", "remaining_seconds": remaining, "running": running}
 
 
 @app.post("/gm/timer/reset")
@@ -1516,9 +1844,37 @@ async def gm_timer_reset():
         "paused_at": None,
         "paused_elapsed": 0.0,
     }
-    add_transmission("MISSION TIMER RESET", "info")
+    if state["step"] >= STEP_MISSION:
+        _start_mission_timer()
+    else:
+        add_transmission("MISSION TIMER RESET", "info")
     _persist()
-    return {"status": "reset"}
+    remaining, running, _ = compute_timer_remaining()
+    return {
+        "status": "reset",
+        "remaining_seconds": remaining,
+        "running": running,
+    }
+
+
+class TimerAdd(BaseModel):
+    seconds: int
+
+
+@app.post("/gm/timer/add")
+async def gm_timer_add(payload: TimerAdd):
+    """Extend mission timer duration (e.g. when time runs out)."""
+    secs = max(60, min(14400, int(payload.seconds)))
+    state["timer"]["duration_seconds"] += secs
+    add_transmission(f"GM :: MISSION TIMER EXTENDED :: +{secs // 60} min", "info")
+    _persist()
+    remaining, running, started = compute_timer_remaining()
+    return {
+        "status": "ok",
+        "added_seconds": secs,
+        "remaining_seconds": remaining,
+        "running": running,
+    }
 
 
 @app.post("/gm/timer/configure")
@@ -1678,19 +2034,30 @@ async def gm_reset_act():
     state["squads"] = {s: _fresh_squad_state() for s in squad_names}
     for lyr in LAYERS:
         state["layer_finish_order"][lyr] = []
+    state["layer_passphrase_revealed"] = {lyr: None for lyr in LAYERS}
+    state["layer_passphrase_revealed_by"] = {lyr: None for lyr in LAYERS}
+    state["layer_passphrase_post_order"] = {lyr: [] for lyr in LAYERS}
     state["layer_digit_claims"] = {lyr: {} for lyr in LAYERS}
+    state["layer_digit_submission_log"] = {lyr: [] for lyr in LAYERS}
     state["score_event_id"] = 0
+    state["passphrase_reveal_event_id"] = 0
+    state["last_passphrase_reveal"] = {"id": 0, "layer": 0, "squad": ""}
     state["last_score_event"] = {"id": 0, "type": "reward"}
     state["game_over"] = False
     state["winner"] = None
+    state["game_over_event_id"] = 0
     state["transmissions"] = []
-    duration = state["timer"]["duration_seconds"]
-    state["timer"] = {
-        "started_at": None,
-        "duration_seconds": duration,
-        "paused_at": None,
-        "paused_elapsed": 0.0,
-    }
+
+    if current_step >= STEP_MISSION:
+        _restart_mission_timer()
+    else:
+        duration = state["timer"]["duration_seconds"]
+        state["timer"] = {
+            "started_at": None,
+            "duration_seconds": duration,
+            "paused_at": None,
+            "paused_elapsed": 0.0,
+        }
 
     state["step"] = current_step
     state["squad_names"] = squad_names
@@ -1710,10 +2077,16 @@ async def gm_reset_act():
             state["act0"]["duration_seconds"] = get_step2_duration()
             state["act0"]["narration_id"] = 1
 
-    add_transmission(
-        f"GM RESET ACT :: PROGRESS CLEARED :: {_step_label(current_step)}",
-        "warn",
-    )
+    if current_step >= STEP_MISSION:
+        add_transmission(
+            "GM RESET ACT :: MISSION PROTOCOL CLEARED :: TIMER RESTARTED",
+            "warn",
+        )
+    else:
+        add_transmission(
+            f"GM RESET ACT :: PROGRESS CLEARED :: {_step_label(current_step)}",
+            "warn",
+        )
     _persist()
     return {"status": "reset_act", "step": current_step}
 
@@ -1728,8 +2101,14 @@ async def gm_reset():
     state["squad_names"] = list(SQUADS)
     for lyr in LAYERS:
         state["layer_finish_order"][lyr] = []
+    state["layer_passphrase_revealed"] = {lyr: None for lyr in LAYERS}
+    state["layer_passphrase_revealed_by"] = {lyr: None for lyr in LAYERS}
+    state["layer_passphrase_post_order"] = {lyr: [] for lyr in LAYERS}
     state["layer_digit_claims"] = {lyr: {} for lyr in LAYERS}
+    state["layer_digit_submission_log"] = {lyr: [] for lyr in LAYERS}
     state["score_event_id"] = 0
+    state["passphrase_reveal_event_id"] = 0
+    state["last_passphrase_reveal"] = {"id": 0, "layer": 0, "squad": ""}
     state["last_score_event"] = {"id": 0, "type": "reward"}
     state["transmissions"] = []
     state["timer"] = {
@@ -1745,6 +2124,7 @@ async def gm_reset():
     state["team_members"] = {}
     state["game_over"] = False
     state["winner"] = None
+    state["game_over_event_id"] = 0
     add_transmission("GAME REBOOT :: TEAMS & SCORES CLEARED", "info")
     _persist()
     return {"status": "reboot", "step": STEP_IDLE}
@@ -1785,6 +2165,8 @@ async def gm_state():
                 "score_log": _squad_score_log(squad_key),
             }
         )
+    remaining, running, started = compute_timer_remaining()
+    timer = state["timer"]
     return {
         "step": state["step"],
         "step_label": _step_label(state["step"]),
@@ -1792,9 +2174,26 @@ async def gm_state():
         "announcement": get_step1_narration(),
         "step2_announcement": get_step2_narration(),
         "teams": teams,
+        "finale_phase": is_finale_phase(),
+        "mission_6": mission_6_snapshot(),
+        "finale": {
+            "mapping_clue": get_finale_mapping_clue(),
+            "postman_clue": get_finale_postman_clue(),
+        },
+        "passphrase_reveal_event_id": state.get("passphrase_reveal_event_id", 0),
+        "last_passphrase_reveal": state.get(
+            "last_passphrase_reveal", {"id": 0, "layer": 0, "squad": ""}
+        ),
         "game_over": state["game_over"],
         "winner": state["winner"],
         "transmissions": state["transmissions"][:10],
+        "timer": {
+            "remaining_seconds": remaining,
+            "running": running,
+            "started": started,
+            "paused": timer["paused_at"] is not None,
+            "duration_seconds": timer["duration_seconds"],
+        },
     }
 
 
@@ -1806,7 +2205,7 @@ async def gm_routes():
             {
                 "id": lyr,
                 "name": get_layer_name(lyr),
-                "route": LAYERS[lyr]["route"],
+                "route": get_layer_route(lyr),
                 "passphrase": get_layer_passphrase(lyr),
                 **get_layer_encoding(lyr),
             }
